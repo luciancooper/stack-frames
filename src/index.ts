@@ -1,3 +1,5 @@
 export type { Eval, StackFrame } from './types';
 
-export * from './parse';
+export { hasFrames, isFrame } from './regex';
+
+export { parseFrame, parseFrames } from './parse';

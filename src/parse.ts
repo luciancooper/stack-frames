@@ -1,20 +1,5 @@
 import type { StackFrame, Eval } from './types';
-
-/**
- * Check if a string contains any stack frames
- * @param str - string to check
- */
-export function isStackTrace(str: string): boolean {
-    return /^\s*at (?:.*? \()?(?:eval at [^ ]+ \(.+?\), )?(?:.+?:\d+:\d+|native)\)?$/m.test(str);
-}
-
-/**
- * Check if line is a stack frame
- * @param line - line to check
- */
-export function isStackFrame(line: string): boolean {
-    return /^\s*at (?:.*? \()?(?:eval at [^ ]+ \(.+?\), )?(?:.+?:\d+:\d+|native)\)?$/.test(line);
-}
+import { isFrame } from './regex';
 
 function extractParenthesized(str: string): [string, string] {
     const j = str.lastIndexOf(')');
@@ -100,10 +85,10 @@ export function parseFrame(line: string): StackFrame {
  * @param error - string or error to extract stack frames from
  * @returns array of parsed stack frames
  */
-export function parse(error?: string | Error): StackFrame[] {
+export function parseFrames(error?: string | Error): StackFrame[] {
     if (!error) return [];
     return ((typeof error === 'string') ? error : (error.stack ?? String(error)))
         .split('\n')
-        .filter(isStackFrame)
+        .filter(isFrame)
         .map((l) => parseFrame(l.trim()));
 }
