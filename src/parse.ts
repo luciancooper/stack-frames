@@ -1,4 +1,4 @@
-import type { StackFrame, Eval } from './types';
+import type { StackFrame } from './types';
 import { isFrame } from './regex';
 
 function extractParenthesized(str: string): [string, string] {
@@ -12,29 +12,15 @@ function extractParenthesized(str: string): [string, string] {
     return i < 0 ? ['', str] : [str.slice(0, i).trim(), str.slice(i + 1, j)];
 }
 
-function splitEval(str: string): { origin: string | string[], loc: string } {
-    const [origin, loc] = extractParenthesized(str);
+function splitEval(str: string): [string | string[], string] {
+    let [origin, loc] = extractParenthesized(str);
     if (loc.startsWith('eval at')) {
-        const nested = splitEval(loc.replace(/^eval at +/, ''));
-        nested.origin = (typeof nested.origin === 'string') ? [origin, nested.origin] : [origin, ...nested.origin];
-        return nested;
+        let nested: string | string[];
+        [nested, loc] = splitEval(loc.replace(/^eval at +/, ''));
+        nested = (typeof nested === 'string') ? [origin, nested] : [origin, ...nested];
+        return [nested, loc];
     }
-    return { origin, loc };
-}
-
-function parseEval(str: string): Eval {
-    const pos: Eval = splitEval(str),
-        // ([1: file][2: line][3: col] | [4: native])
-        match = /^(?:(.+?):(\d+):(\d+)|(native))$/.exec(pos.loc);
-    if (match) {
-        pos.native = !!match[4];
-        if (match[1]) {
-            pos.file = match[1];
-            pos.line = Number(match[2]!);
-            pos.col = Number(match[3]!);
-        }
-    }
-    return pos;
+    return [origin, loc];
 }
 
 /**
@@ -43,39 +29,55 @@ function parseEval(str: string): Eval {
  * @returns parsed stack frame
  */
 export function parseFrame(line: string): StackFrame {
-    let frame: StackFrame;
+    // initialize stack frame
+    const frame: StackFrame = {};
+    // remove leading 'at '
+    let loc = line.replace(/^\s*at */, '');
     // separate out parenthesized location
-    if (/\)\s*$/.test(line)) {
-        const [func, loc] = extractParenthesized(line.replace(/^\s*at */, ''));
-        // initialize stack frame
-        frame = { loc };
-        // parse function
+    if (/\)\s*$/.test(loc)) {
+        let func: string;
+        [func, loc] = extractParenthesized(loc);
+        // parse function signature [1: async?] [2: ctor?] [3: type?] [4: func] [5: method?]
         const match = /^(?:(async) )?(?:(new) )?(?:((?:\S*?\.)*\S+)\.)?(\S+)(?: \[as (\S+)\])?$/.exec(func);
         if (match) {
-            frame.ctor = !!match[2];
-            frame.async = !!match[1];
-            frame.func = match[4]!;
+            func = match[4]!;
+            if (match[1]) frame.async = true;
+            if (match[2]) frame.ctor = true;
             if (match[3]) frame.type = match[3]!;
             if (match[5]) frame.method = match[5]!;
-        } else {
-            frame.func = func;
         }
-    } else {
-        frame = { loc: line.replace(/^\s*at */, '') };
+        frame.func = func;
     }
     // parse loc [1: eval?] ([2: file][3: line][4: col] | [5: native])
-    const match = /^(?:eval at (\S+ \(.+?\)), )?(?:(.+?):(\d+):(\d+)|(native))$/.exec(frame.loc);
+    let match = /^(?:eval at (\S+ \(.+?\)), )?(?:(.+?):(\d+):(\d+)|native)$/.exec(loc);
     if (match) {
-        frame.native = !!match[5];
         if (match[2]) {
             frame.file = match[2];
             frame.line = Number(match[3]!);
             frame.col = Number(match[4]!);
+        } else {
+            // file:line:col did not match, so must be native
+            frame.native = true;
         }
         // check for eval
         if (match[1]) {
-            frame.eval = parseEval(match[1]);
+            // split eval position
+            [frame.evalOrigin, loc] = splitEval(match[1]);
+            // ([1: file][2: line][3: col] | [4: native])
+            match = /^(?:(.+?):(\d+):(\d+)|native)$/.exec(loc);
+            if (!match) {
+                frame.evalLoc = loc;
+            } else if (match[1]) {
+                frame.evalFile = match[1];
+                frame.evalLine = Number(match[2]!);
+                frame.evalCol = Number(match[3]!);
+            } else {
+                // file:line:col did not match, so must be native
+                frame.evalNative = true;
+            }
         }
+    } else {
+        frame.loc = loc;
     }
     return frame;
 }
