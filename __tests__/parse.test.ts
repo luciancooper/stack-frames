@@ -95,6 +95,16 @@ describe('source location', () => {
         });
     });
 
+    test('async path (windows style)', () => {
+        const frame = parseFrame('at async C:\\root\\command.js:142:13');
+        expect(frame).toEqual<StackFrame>({
+            async: true,
+            file: 'C:\\root\\command.js',
+            line: 142,
+            col: 13,
+        });
+    });
+
     test('node.js internal', () => {
         const frame = parseFrame('at processTicksAndRejections (node:internal/process/task_queues:96:5)');
         expect(frame).toEqual<StackFrame>({

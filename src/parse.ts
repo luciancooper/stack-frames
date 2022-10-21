@@ -33,18 +33,22 @@ export function parseFrame(line: string): StackFrame {
     const frame: StackFrame = {};
     // remove leading 'at '
     let loc = line.replace(/^\s*at */, '');
+    // check if frame starts with 'async'
+    if (loc.startsWith('async ')) {
+        frame.async = true;
+        loc = loc.slice(6);
+    }
     // separate out parenthesized location
     if (/\)\s*$/.test(loc)) {
         let func: string;
         [func, loc] = extractParenthesized(loc);
-        // parse function signature [1: async?] [2: ctor?] [3: type?] [4: func] [5: method?]
-        const match = /^(?:(async) )?(?:(new) )?(?:((?:\S*?\.)*\S+)\.)?(\S+)(?: \[as (\S+)\])?$/.exec(func);
+        // parse function signature [1: ctor?] [2: type?] [3: func] [4: method?]
+        const match = /^(?:(new) )?(?:((?:\S*?\.)*\S+)\.)?(\S+)(?: \[as (\S+)\])?$/.exec(func);
         if (match) {
-            func = match[4]!;
-            if (match[1]) frame.async = true;
-            if (match[2]) frame.ctor = true;
-            if (match[3]) frame.type = match[3]!;
-            if (match[5]) frame.method = match[5]!;
+            func = match[3]!;
+            if (match[1]) frame.ctor = true;
+            if (match[2]) frame.type = match[2]!;
+            if (match[4]) frame.method = match[4]!;
         }
         frame.func = func;
     }

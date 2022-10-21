@@ -29,6 +29,7 @@ describe('matches v8 stack frames', () => {
 
     test('async call signatures', () => {
         expect(isFrame('at async run (/root/file.js:5:1)')).toBe(true);
+        expect(isFrame('at async C:\\root\\command.js:142:13')).toBe(true);
     });
 
     test('eval source locations', () => {
